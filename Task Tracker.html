@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Online Weekly Task Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .priority-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .priority-high { border: 1px solid #ef4444; color: #ef4444; }
+        .priority-medium { border: 1px solid #f97316; color: #f97316; }
+        .priority-low { border: 1px solid #22c55e; color: #22c55e; }
+        select:focus, input:focus, textarea:focus {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+        }
+        table { table-layout: auto; }
+        .task-summary-row { cursor: pointer; }
+        .task-details-row td { padding: 0; background-color: #f9fafb; }
+        .details-content { padding: 1rem 1.5rem; }
+        .expand-icon { transition: transform 0.2s ease-in-out; }
+        .expanded .expand-icon { transform: rotate(90deg); }
+        /* Loading Spinner */
+        #loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Collaborative Task Tracker</h1>
+                <p class="text-gray-600 mt-1">All changes are synced live for the entire team.</p>
+            </div>
+            <div id="auth-status" class="text-right">
+                 <p class="text-sm font-medium text-green-600">Status: Live & Shared</p>
+            </div>
+        </header>
+
+        <!-- Team and Week Info -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <div>
+                <label for="teamName" class="block text-sm font-medium text-gray-700">Team / Project Name</label>
+                <input type="text" id="teamName" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2" placeholder="e.g., Marketing Team">
+            </div>
+            <div>
+                <label for="weekOf" class="block text-sm font-medium text-gray-700">Week Of</label>
+                <input type="date" id="weekOf" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2">
+            </div>
+        </div>
+
+        <!-- Add New Task Form -->
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Add a New Task</h2>
+            <form id="addTaskForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                <div class="lg:col-span-2">
+                    <label for="taskDescription" class="block text-sm font-medium text-gray-700">Task Description</label>
+                    <input type="text" id="taskDescription" placeholder="e.g., Draft quarterly report" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2" required>
+                </div>
+                <div>
+                    <label for="taskProject" class="block text-sm font-medium text-gray-700">Project / Category</label>
+                    <select id="taskProject" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2">
+                        <option value="Admin">Admin</option> <option value="HR">HR</option> <option value="Legal">Legal</option> <option value="Marketing">Marketing</option> <option value="Product Development">Product Development</option> <option value="Website Maintenance">Website Maintenance</option> <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex-1">
+                        <label for="taskPriority" class="block text-sm font-medium text-gray-700">Priority</label>
+                        <select id="taskPriority" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2">
+                            <option value="High">High</option> <option value="Medium">Medium</option> <option value="Low">Low</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 h-10 mt-auto">Add Task</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Task Table -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">Task / Project</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                        <th class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody id="taskTableBody" class="bg-white divide-y divide-gray-200">
+                    <!-- Loading state -->
+                    <tr><td colspan="6" class="text-center py-10"><div class="flex justify-center items-center"><div id="loader"></div><p class="ml-4 text-gray-500">Connecting to shared tracker...</p></div></td></tr>
+                </tbody>
+                <tfoot class="bg-gray-50">
+                    <tr>
+                        <td colspan="3" class="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-700">Total Hours This Week:</td>
+                        <td id="totalHours" class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">0</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- FIREBASE IMPORTS ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- FIREBASE CONFIG (DO NOT EDIT) ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // --- APP INITIALIZATION ---
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // --- GLOBAL VARIABLES ---
+        let tasksCollection;
+        let trackerInfoDocRef;
+
+        // --- DOM ELEMENTS ---
+        const form = document.getElementById('addTaskForm');
+        const tableBody = document.getElementById('taskTableBody');
+        const totalHoursEl = document.getElementById('totalHours');
+        const weekOfInput = document.getElementById('weekOf');
+        const teamNameInput = document.getElementById('teamName');
+
+        // --- AUTHENTICATION ---
+        onAuthStateChanged(auth, async user => {
+            if (user) {
+                // --- DATABASE REFERENCES (CHANGED FOR COLLABORATION) ---
+                // All users now point to the same public collection of tasks.
+                tasksCollection = collection(db, `artifacts/${appId}/public/data/tasks`);
+                // All users also share the same document for general info.
+                trackerInfoDocRef = doc(db, `artifacts/${appId}/public/data/trackerInfo/details`);
+
+                loadTrackerInfo();
+                listenForTasks();
+            }
+        });
+        
+        async function signIn() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Authentication Error:", error);
+                tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-red-500">Could not authenticate. Please refresh the page.</td></tr>`;
+            }
+        }
+
+        // --- DATA LISTENERS AND RENDERING ---
+        function listenForTasks() {
+            onSnapshot(tasksCollection, (snapshot) => {
+                const tasks = [];
+                snapshot.forEach(doc => {
+                    tasks.push({ id: doc.id, ...doc.data() });
+                });
+                renderTasks(tasks);
+            }, (error) => {
+                console.error("Error fetching tasks: ", error);
+                tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-red-500">Error loading tasks. Check the console.</td></tr>`;
+            });
+        }
+
+        function renderTasks(tasks) {
+            tableBody.innerHTML = '';
+            if (tasks.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-500">No tasks added yet. Use the form above to get started!</td></tr>`;
+            } else {
+                tasks.forEach(task => {
+                    const summaryRow = document.createElement('tr');
+                    summaryRow.className = 'task-summary-row';
+                    summaryRow.dataset.taskId = task.id;
+                    summaryRow.innerHTML = `
+                        <td class="px-6 py-4 whitespace-normal"><div class="flex items-center"><svg class="expand-icon w-4 h-4 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg><div><div class="text-sm font-semibold text-gray-900">${task.description}</div><div class="text-xs text-gray-500">${task.project}</div></div></div></td>
+                        <td class="px-6 py-4 whitespace-nowrap"><select class="status-select w-full rounded-md border-gray-300 shadow-sm p-1 text-sm" data-id="${task.id}"><option value="Not Started" ${task.status === 'Not Started' ? 'selected' : ''}>Not Started</option><option value="In Progress" ${task.status === 'In Progress' ? 'selected' : ''}>In Progress</option><option value="Completed" ${task.status === 'Completed' ? 'selected' : ''}>Completed</option><option value="Blocked" ${task.status === 'Blocked' ? 'selected' : ''}>Blocked</option><option value="On Hold" ${task.status === 'On Hold' ? 'selected' : ''}>On Hold</option></select></td>
+                        <td class="px-6 py-4 whitespace-nowrap"><span class="priority-badge priority-${task.priority.toLowerCase()}">${task.priority}</span></td>
+                        <td class="px-6 py-4 whitespace-nowrap"><input type="number" min="0" step="0.5" value="${task.hours}" class="hours-input w-20 rounded-md border-gray-300 shadow-sm p-1 text-sm" data-id="${task.id}"></td>
+                        <td class="px-6 py-4 whitespace-normal"><textarea class="notes-input w-full rounded-md border-gray-300 shadow-sm p-1 text-sm" rows="1" data-id="${task.id}" placeholder="Issues, blockers...">${task.notes || ''}</textarea></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><button class="delete-btn text-red-600 hover:text-red-900" data-id="${task.id}">Delete</button></td>`;
+                    
+                    const detailsRow = document.createElement('tr');
+                    detailsRow.className = 'task-details-row hidden';
+                    detailsRow.dataset.taskId = task.id;
+                    detailsRow.innerHTML = `
+                        <td colspan="6"><div class="details-content grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">Task Update</label><textarea class="update-input w-full rounded-md border-gray-300 shadow-sm p-1 text-sm" rows="3" data-id="${task.id}" placeholder="Provide a status update...">${task.update || ''}</textarea></div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">Follow-up Action</label><textarea class="followup-input w-full rounded-md border-gray-300 shadow-sm p-1 text-sm" rows="3" data-id="${task.id}" placeholder="What are the next steps?">${task.followUp || ''}</textarea></div>
+                        </div></td>`;
+                    tableBody.appendChild(summaryRow);
+                    tableBody.appendChild(detailsRow);
+                });
+            }
+            updateTotalHours(tasks);
+        }
+
+        // --- DATABASE FUNCTIONS ---
+        async function addTask(e) {
+            e.preventDefault();
+            const description = document.getElementById('taskDescription').value;
+            if (!description) return;
+            const newTask = {
+                description,
+                project: document.getElementById('taskProject').value,
+                priority: document.getElementById('taskPriority').value,
+                status: 'Not Started', hours: 0, notes: '', update: '', followUp: '', createdAt: new Date()
+            };
+            await addDoc(tasksCollection, newTask);
+            form.reset();
+            document.getElementById('taskDescription').focus();
+        }
+
+        async function updateTask(id, field, value) {
+            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, id);
+            await updateDoc(taskRef, { [field]: value });
+        }
+
+        async function deleteTask(id) {
+            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, id);
+            await deleteDoc(taskRef);
+        }
+        
+        async function saveTrackerInfo() {
+            const data = { teamName: teamNameInput.value, weekOf: weekOfInput.value };
+            await setDoc(trackerInfoDocRef, data, { merge: true });
+        }
+
+        function loadTrackerInfo() {
+            onSnapshot(trackerInfoDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    teamNameInput.value = data.teamName || '';
+                    weekOfInput.value = data.weekOf || getMondayOfCurrentWeek();
+                } else {
+                    weekOfInput.value = getMondayOfCurrentWeek();
+                }
+            });
+        }
+        
+        // --- UTILITY & EVENT LISTENERS ---
+        function updateTotalHours(tasks) {
+            const total = tasks.reduce((sum, task) => sum + parseFloat(task.hours || 0), 0);
+            totalHoursEl.textContent = total.toFixed(1);
+        }
+
+        function getMondayOfCurrentWeek() {
+            const today = new Date();
+            const day = today.getDay() || 7; 
+            if(day !== 1) today.setHours(-24 * (day - 1));
+            return today.toISOString().split('T')[0];
+        }
+
+        form.addEventListener('submit', addTask);
+        tableBody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('delete-btn')) {
+                if (confirm('Are you sure you want to delete this task?')) deleteTask(e.target.dataset.id);
+                return;
+            }
+            const summaryRow = e.target.closest('.task-summary-row');
+            if (summaryRow && !e.target.matches('input, select, textarea, button')) {
+                summaryRow.nextElementSibling.classList.toggle('hidden');
+                summaryRow.classList.toggle('expanded');
+            }
+        });
+        tableBody.addEventListener('input', (e) => {
+            const id = e.target.dataset.id;
+            if (!id) return;
+            const value = e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
+            const field = e.target.className.split(' ')[0].replace('-input', '');
+            updateTask(id, field, value);
+        });
+        tableBody.addEventListener('change', (e) => {
+            if (e.target.classList.contains('status-select')) updateTask(e.target.dataset.id, 'status', e.target.value);
+        });
+        teamNameInput.addEventListener('change', saveTrackerInfo);
+        weekOfInput.addEventListener('change', saveTrackerInfo);
+
+        // --- START THE APP ---
+        signIn();
+    </script>
+</body>
+</html>
